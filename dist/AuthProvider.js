@@ -1,20 +1,27 @@
-import { defineComponent, reactive, provide, onMounted, onUnmounted, } from 'vue';
+import { defineComponent, reactive, provide, inject, onMounted, onUnmounted, } from 'vue';
 function decodeJWT(token) {
     const base64 = token.split('.')[1];
     const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
     return JSON.parse(json);
 }
 export const AUTH_INJECTION_KEY = Symbol('auth');
+export const AUTH_CONFIG_KEY = Symbol('auth-config');
 export const AuthProvider = defineComponent({
     name: 'AuthProvider',
     props: {
         config: {
             type: Object,
-            required: true,
+            default: undefined,
         },
     },
     setup(props, { slots }) {
-        const { authUrl, clientId, appUrl, apiUrl } = props.config;
+        // Read config from prop or from plugin injection
+        const injectedConfig = inject(AUTH_CONFIG_KEY, undefined);
+        const config = props.config || injectedConfig;
+        if (!config) {
+            throw new Error('AuthProvider requires a config prop or must be used with createAuthPlugin()');
+        }
+        const { authUrl, clientId, appUrl, apiUrl } = config;
         const baseApiUrl = apiUrl || appUrl;
         let refreshTimer;
         let refreshLock = false;
@@ -218,15 +225,9 @@ export const AuthProvider = defineComponent({
 export function createAuthPlugin(config) {
     return {
         install(app) {
-            // Register the AuthProvider component globally
             app.component('AuthProvider', AuthProvider);
-            // We can't provide the reactive state here because it's created inside the component.
-            // Consumers must wrap their app with <AuthProvider :config="config">
-            // and use useAuth() inside child components.
-            // Store config for AuthCallback to use
             app.provide(AUTH_CONFIG_KEY, config);
         },
     };
 }
-export const AUTH_CONFIG_KEY = Symbol('auth-config');
 //# sourceMappingURL=AuthProvider.js.map

@@ -2,11 +2,11 @@ import {
   defineComponent,
   reactive,
   provide,
+  inject,
   onMounted,
   onUnmounted,
   type InjectionKey,
   type PropType,
-  h,
 } from 'vue';
 import type { AuthConfig, AuthUser, AuthOrganization, AuthState } from './types.js';
 
@@ -27,17 +27,25 @@ function decodeJWT(token: string): JWTPayload {
 }
 
 export const AUTH_INJECTION_KEY: InjectionKey<AuthState> = Symbol('auth');
+export const AUTH_CONFIG_KEY: InjectionKey<AuthConfig> = Symbol('auth-config');
 
 export const AuthProvider = defineComponent({
   name: 'AuthProvider',
   props: {
     config: {
       type: Object as PropType<AuthConfig>,
-      required: true,
+      default: undefined,
     },
   },
   setup(props, { slots }) {
-    const { authUrl, clientId, appUrl, apiUrl } = props.config;
+    // Read config from prop or from plugin injection
+    const injectedConfig = inject(AUTH_CONFIG_KEY, undefined);
+    const config = props.config || injectedConfig;
+    if (!config) {
+      throw new Error('AuthProvider requires a config prop or must be used with createAuthPlugin()');
+    }
+
+    const { authUrl, clientId, appUrl, apiUrl } = config;
     const baseApiUrl = apiUrl || appUrl;
 
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -253,16 +261,8 @@ export const AuthProvider = defineComponent({
 export function createAuthPlugin(config: AuthConfig) {
   return {
     install(app: { component: (name: string, comp: unknown) => void; provide: (key: symbol | InjectionKey<unknown>, value: unknown) => void }) {
-      // Register the AuthProvider component globally
       app.component('AuthProvider', AuthProvider);
-
-      // We can't provide the reactive state here because it's created inside the component.
-      // Consumers must wrap their app with <AuthProvider :config="config">
-      // and use useAuth() inside child components.
-      // Store config for AuthCallback to use
-      app.provide(AUTH_CONFIG_KEY, config);
+      app.provide(AUTH_CONFIG_KEY as InjectionKey<unknown>, config);
     },
   };
 }
-
-export const AUTH_CONFIG_KEY: InjectionKey<AuthConfig> = Symbol('auth-config');
