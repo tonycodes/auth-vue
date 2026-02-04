@@ -1,0 +1,25 @@
+{
+  "name": "@tonycodes/auth-vue",
+  "version": "1.0.0",
+  "description": "Vue 3 SDK for Tony Auth service",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "peerDependencies": {
+    "vue": ">=3.3.0"
+  },
+  "devDependencies": {
+    "vue": "^3.5.13",
+    "typescript": "^5.3.3"
+  }
+}
