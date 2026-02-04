@@ -35,7 +35,22 @@ export const AuthCallback = defineComponent({
 
       if (errorParam) {
         error.value = errorParam;
-        if (props.onError) (props.onError as (e: string) => void)(errorParam);
+        if (props.onError) {
+          (props.onError as (e: string) => void)(errorParam);
+        } else {
+          // No error handler — redirect to login with error context
+          let returnTo = '/';
+          if (state) {
+            try {
+              const decoded = JSON.parse(atob(state));
+              returnTo = decoded.returnTo || '/';
+            } catch { /* ignore */ }
+          }
+          const loginUrl = new URL('/login', window.location.origin);
+          loginUrl.searchParams.set('error', errorParam);
+          if (returnTo !== '/') loginUrl.searchParams.set('returnTo', returnTo);
+          window.location.href = loginUrl.toString();
+        }
         return;
       }
 
