@@ -59,7 +59,7 @@ export const AuthCallback = defineComponent({
             }
             const baseUrl = props.apiUrl || config?.apiUrl || config?.appUrl || window.location.origin;
             try {
-                const res = await fetch(`${baseUrl}/auth/callback?code=${encodeURIComponent(code)}`, {
+                const res = await fetch(`${baseUrl}/api/auth/callback?code=${encodeURIComponent(code)}`, {
                     credentials: 'include',
                 });
                 if (!res.ok) {
