@@ -1,0 +1,51 @@
+{
+  "name": "@tonycodes/auth-vue",
+  "version": "1.0.0",
+  "description": "Vue 3 SDK for Tony Auth service",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && npx tailwindcss -i src/style.css -o dist/style.css --minify",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "auth",
+    "authentication",
+    "sdk"
+  ],
+  "author": "Tony <tony@tony.codes>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tonycodes/auth-vue.git"
+  },
+  "homepage": "https://github.com/tonycodes/auth-vue#readme",
+  "bugs": {
+    "url": "https://github.com/tonycodes/auth-vue/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "vue": ">=3.3.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.3.3",
+    "vue": "^3.5.13"
+  }
+}
