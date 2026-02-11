@@ -1,7 +1,6 @@
-import { defineComponent, ref, computed, onMounted, inject, h, type PropType } from 'vue';
-import { AUTH_CONFIG_KEY } from './AuthProvider.js';
-import { useProviders } from './useProviders.js';
-import type { AuthConfig } from './types.js';
+import { defineComponent, ref, onMounted, h, computed, type PropType } from 'vue';
+import { useAuthConfig } from './useAuth.js';
+import { useProviders, type SSOProvider } from './useProviders.js';
 
 type Mode = 'signin' | 'signup';
 
@@ -18,25 +17,41 @@ const GOOGLE_ICON = `<svg viewBox="0 0 24 24" width="20" height="20"><path fill=
 
 const APPLE_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>`;
 
-const BITBUCKET_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z"/></svg>`;
+const BITBUCKET_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M.778 1.213a.768.768 0 0 0-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 0 0 .77-.646l3.27-20.03a.768.768 0 0 0-.768-.891L.778 1.213zM14.52 15.53H9.522L8.17 8.466h7.561l-1.211 7.064z"/></svg>`;
+
+const PROVIDER_ICONS: Record<SSOProvider, string> = {
+  github: GITHUB_ICON,
+  google: GOOGLE_ICON,
+  apple: APPLE_ICON,
+  bitbucket: BITBUCKET_ICON,
+};
+
+const PROVIDER_NAMES: Record<SSOProvider, string> = {
+  github: 'GitHub',
+  google: 'Google',
+  apple: 'Apple',
+  bitbucket: 'Bitbucket',
+};
+
+const PROVIDER_STYLES: Record<SSOProvider, string> = {
+  github: 'bg-zinc-900 text-white hover:bg-zinc-800',
+  google: 'bg-white text-zinc-900 border border-zinc-300 hover:bg-zinc-50',
+  apple: 'bg-black text-white hover:bg-zinc-900',
+  bitbucket: 'bg-blue-600 text-white hover:bg-blue-700',
+};
 
 export const SignInForm = defineComponent({
   name: 'SignInForm',
   props: {
-    /** List of provider IDs to show. If not provided, auto-fetches from auth service. */
+    /** List of provider IDs to show (for manual control). Overrides autoFetch when provided. */
     providers: {
-      type: Array as PropType<string[]>,
+      type: Array as PropType<SSOProvider[]>,
       default: undefined,
     },
-    /** Whether to auto-fetch available providers from the auth service. Default: true */
+    /** Whether to automatically fetch providers from the auth service. Defaults to true. */
     autoFetch: {
       type: Boolean,
       default: true,
-    },
-    /** Mode to display the form in */
-    mode: {
-      type: String as PropType<Mode>,
-      default: undefined,
     },
     class: {
       type: String,
@@ -44,26 +59,21 @@ export const SignInForm = defineComponent({
     },
   },
   setup(props) {
-    const config = inject<AuthConfig>(AUTH_CONFIG_KEY, undefined as unknown as AuthConfig);
+    const config = useAuthConfig();
     const { providers: fetchedProviders, isLoading: providersLoading } = useProviders();
-
-    const activeTab = ref<Mode>(props.mode || 'signin');
+    const activeTab = ref<Mode>('signin');
     const errorMessage = ref<string | null>(null);
     const returnTo = ref('/');
 
-    // Determine which providers to show
-    const enabledProviderIds = computed(() => {
+    // Use prop providers if explicitly provided, otherwise use fetched providers
+    const enabledProviders = computed<SSOProvider[]>(() => {
       if (props.providers) {
         return props.providers;
       }
       if (props.autoFetch) {
-        return fetchedProviders.value.filter((p) => p.enabled).map((p) => p.id);
+        return fetchedProviders.value.map((p) => p.id);
       }
-      return ['github'];
-    });
-
-    const showLoading = computed(() => {
-      return props.autoFetch && providersLoading.value && !props.providers;
+      return ['github']; // fallback default
     });
 
     onMounted(() => {
@@ -76,19 +86,18 @@ export const SignInForm = defineComponent({
 
       if (errorParam) {
         errorMessage.value = ERROR_MESSAGES[errorParam] || `Authentication error: ${errorParam}`;
+        // Auto-switch to signup tab on account_not_found
         if (errorParam === 'account_not_found') {
           activeTab.value = 'signup';
         }
       }
 
-      if (!props.mode && (tabParam === 'signin' || tabParam === 'signup')) {
+      if (tabParam === 'signin' || tabParam === 'signup') {
         activeTab.value = tabParam;
       }
     });
 
     function handleOAuth(provider: string) {
-      if (!config) return;
-
       const redirectUri = `${config.appUrl}/auth/callback`;
       const state = btoa(JSON.stringify({ returnTo: returnTo.value }));
       const params = new URLSearchParams({
@@ -106,44 +115,9 @@ export const SignInForm = defineComponent({
       errorMessage.value = null;
     }
 
-    function getProviderButton(providerId: string) {
-      const actionText = activeTab.value === 'signin' ? 'Sign in with' : 'Sign up with';
-
-      const buttonConfigs: Record<string, { icon: string; class: string; label: string }> = {
-        github: {
-          icon: GITHUB_ICON,
-          class: 'w-full flex items-center justify-center gap-3 px-6 py-3 bg-zinc-900 text-white font-medium rounded-xl hover:bg-zinc-800 transition-colors cursor-pointer',
-          label: `${actionText} GitHub`,
-        },
-        google: {
-          icon: GOOGLE_ICON,
-          class: 'w-full flex items-center justify-center gap-3 px-6 py-3 bg-white text-zinc-700 font-medium rounded-xl border border-zinc-300 hover:bg-zinc-50 transition-colors cursor-pointer',
-          label: `${actionText} Google`,
-        },
-        apple: {
-          icon: APPLE_ICON,
-          class: 'w-full flex items-center justify-center gap-3 px-6 py-3 bg-black text-white font-medium rounded-xl hover:bg-zinc-900 transition-colors cursor-pointer',
-          label: `${actionText} Apple`,
-        },
-        bitbucket: {
-          icon: BITBUCKET_ICON,
-          class: 'w-full flex items-center justify-center gap-3 px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors cursor-pointer',
-          label: `${actionText} Bitbucket`,
-        },
-      };
-
-      const config = buttonConfigs[providerId];
-      if (!config) return null;
-
-      return h('button', {
-        key: providerId,
-        type: 'button',
-        class: config.class,
-        onClick: () => handleOAuth(providerId),
-      }, [
-        h('span', { innerHTML: config.icon }),
-        h('span', null, config.label),
-      ]);
+    function buttonText(provider: SSOProvider) {
+      const name = PROVIDER_NAMES[provider] || provider;
+      return activeTab.value === 'signin' ? `Sign in with ${name}` : `Sign up with ${name}`;
     }
 
     return () => {
@@ -184,19 +158,38 @@ export const SignInForm = defineComponent({
         );
       }
 
-      // Provider buttons or loading
-      if (showLoading.value) {
+      // Loading state
+      if (props.autoFetch && !props.providers && providersLoading.value) {
         children.push(
-          h('div', {
-            class: 'text-center py-4 text-zinc-500 text-sm',
-          }, 'Loading providers...')
+          h('div', { class: 'flex items-center justify-center py-4' }, [
+            h('div', { class: 'h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600' }),
+          ])
         );
       } else {
-        children.push(
-          h('div', { class: 'space-y-3' },
-            enabledProviderIds.value.map((id) => getProviderButton(id)).filter(Boolean)
-          )
-        );
+        // Provider buttons container
+        const providerButtons: ReturnType<typeof h>[] = [];
+
+        for (const provider of enabledProviders.value) {
+          const icon = PROVIDER_ICONS[provider];
+          const style = PROVIDER_STYLES[provider];
+
+          if (icon && style) {
+            providerButtons.push(
+              h('button', {
+                type: 'button',
+                class: `w-full flex items-center justify-center gap-3 px-6 py-3 font-medium rounded-xl transition-colors cursor-pointer ${style}`,
+                onClick: () => handleOAuth(provider),
+              }, [
+                h('span', { innerHTML: icon }),
+                h('span', null, buttonText(provider)),
+              ])
+            );
+          }
+        }
+
+        if (providerButtons.length > 0) {
+          children.push(h('div', { class: 'space-y-3' }, providerButtons));
+        }
       }
 
       // Terms
