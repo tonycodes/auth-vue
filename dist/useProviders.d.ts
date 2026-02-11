@@ -1,29 +1,21 @@
-import { ref } from 'vue';
+import { type Ref } from 'vue';
+export type SSOProvider = 'github' | 'google' | 'apple' | 'bitbucket';
 export interface ProviderInfo {
-    id: string;
+    id: SSOProvider;
     name: string;
     enabled: boolean;
 }
 export interface UseProvidersResult {
-    providers: typeof ref<ProviderInfo[]>;
-    isLoading: typeof ref<boolean>;
-    error: typeof ref<string | null>;
+    providers: Ref<ProviderInfo[]>;
+    isLoading: Ref<boolean>;
+    error: Ref<string | null>;
+    /** Force refetch, bypassing cache */
+    refresh: () => void;
 }
 /**
- * Composable to fetch available SSO providers for the current organization.
- * Automatically fetches providers based on the client_id from AuthProvider config.
+ * Composable to fetch available SSO providers from the auth service.
+ * Uses module-level cache with 60s TTL and stale-while-revalidate.
+ * Clears cache on window.focus for admin changes to take effect.
  */
-export declare function useProviders(): {
-    providers: import("vue").Ref<{
-        id: string;
-        name: string;
-        enabled: boolean;
-    }[], ProviderInfo[] | {
-        id: string;
-        name: string;
-        enabled: boolean;
-    }[]>;
-    isLoading: import("vue").Ref<boolean, boolean>;
-    error: import("vue").Ref<string | null, string | null>;
-};
+export declare function useProviders(): UseProvidersResult;
 //# sourceMappingURL=useProviders.d.ts.map

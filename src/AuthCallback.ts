@@ -1,6 +1,6 @@
 import { defineComponent, ref, onMounted, inject, h } from 'vue';
-import { AUTH_CONFIG_KEY } from './AuthProvider.js';
-import type { AuthConfig } from './types.js';
+import { AUTH_RESOLVED_CONFIG_KEY } from './AuthProvider.js';
+import type { ResolvedAuthConfig } from './types.js';
 
 /**
  * Component that handles the OAuth callback.
@@ -20,8 +20,8 @@ export const AuthCallback = defineComponent({
     const error = ref<string | null>(null);
     const exchanged = ref(false);
 
-    // Try to get config from plugin injection
-    const config = inject<AuthConfig>(AUTH_CONFIG_KEY, undefined as unknown as AuthConfig);
+    // Try to get resolved config from provider injection
+    const config = inject<ResolvedAuthConfig>(AUTH_RESOLVED_CONFIG_KEY, undefined as unknown as ResolvedAuthConfig);
 
     onMounted(async () => {
       // Guard against double-firing
@@ -63,7 +63,7 @@ export const AuthCallback = defineComponent({
       const baseUrl = props.apiUrl || config?.apiUrl || config?.appUrl || window.location.origin;
 
       try {
-        const res = await fetch(`${baseUrl}/api/auth/callback?code=${encodeURIComponent(code)}`, {
+        const res = await fetch(`${baseUrl}/auth/callback?code=${encodeURIComponent(code)}`, {
           credentials: 'include',
         });
 

@@ -1,7 +1,8 @@
 import { type InjectionKey, type PropType } from 'vue';
-import type { AuthConfig, AuthState } from './types.js';
+import type { AuthConfig, ResolvedAuthConfig, AuthState } from './types.js';
 export declare const AUTH_INJECTION_KEY: InjectionKey<AuthState>;
 export declare const AUTH_CONFIG_KEY: InjectionKey<AuthConfig>;
+export declare const AUTH_RESOLVED_CONFIG_KEY: InjectionKey<ResolvedAuthConfig>;
 export declare const AuthProvider: import("vue").DefineComponent<import("vue").ExtractPropTypes<{
     config: {
         type: PropType<AuthConfig>;
