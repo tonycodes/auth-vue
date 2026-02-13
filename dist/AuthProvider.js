@@ -94,6 +94,7 @@ export const AuthProvider = defineComponent({
             isAdmin: false,
             isOwner: false,
             orgRole: 'member',
+            appRole: null,
             isSuperAdmin: false,
             isPlatformAdmin: false,
             accessToken: null,
@@ -115,6 +116,7 @@ export const AuthProvider = defineComponent({
                 name: payload.name || 'User',
                 role: payload.org?.role === 'owner' || payload.org?.role === 'admin' ? 'admin' : 'member',
                 imageUrl: payload.avatarUrl,
+                appRole: payload.appRole || null,
             };
             if (payload.org) {
                 state.organization = {
@@ -137,6 +139,7 @@ export const AuthProvider = defineComponent({
             }
             state.isSuperAdmin = payload.isSuperAdmin;
             state.isPlatformAdmin = payload.isSuperAdmin;
+            state.appRole = payload.appRole || null;
             state.accessToken = token;
             state.isAdmin = state.orgRole === 'admin' || state.orgRole === 'owner';
             state.isOwner = state.orgRole === 'owner';
@@ -163,6 +166,7 @@ export const AuthProvider = defineComponent({
                     state.isAuthenticated = false;
                     state.isAdmin = false;
                     state.isOwner = false;
+                    state.appRole = null;
                     state.isSuperAdmin = false;
                     state.isPlatformAdmin = false;
                     return null;
@@ -239,6 +243,7 @@ export const AuthProvider = defineComponent({
             state.isAuthenticated = false;
             state.isAdmin = false;
             state.isOwner = false;
+            state.appRole = null;
             state.isSuperAdmin = false;
             state.isPlatformAdmin = false;
             state.isLoggingOut = false;
