@@ -7,6 +7,7 @@ export interface ProviderInfo {
 }
 export interface UseProvidersResult {
     providers: Ref<ProviderInfo[]>;
+    emailEnabled: Ref<boolean>;
     isLoading: Ref<boolean>;
     error: Ref<string | null>;
     /** Force refetch, bypassing cache */

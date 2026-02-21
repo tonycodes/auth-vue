@@ -11,6 +11,7 @@ export interface ProviderInfo {
 
 export interface UseProvidersResult {
   providers: Ref<ProviderInfo[]>;
+  emailEnabled: Ref<boolean>;
   isLoading: Ref<boolean>;
   error: Ref<string | null>;
   /** Force refetch, bypassing cache */
@@ -21,6 +22,7 @@ export interface UseProvidersResult {
 
 interface CacheEntry {
   providers: ProviderInfo[];
+  emailEnabled: boolean;
   fetchedAt: number;
 }
 
@@ -41,7 +43,12 @@ function isStale(entry: CacheEntry): boolean {
   return Date.now() - entry.fetchedAt > CACHE_TTL;
 }
 
-async function fetchProviders(authUrl: string, clientId: string): Promise<ProviderInfo[]> {
+interface FetchResult {
+  providers: ProviderInfo[];
+  emailEnabled: boolean;
+}
+
+async function fetchProviders(authUrl: string, clientId: string): Promise<FetchResult> {
   const url = new URL(`${authUrl}/providers`);
   url.searchParams.set('client_id', clientId);
 
@@ -51,7 +58,7 @@ async function fetchProviders(authUrl: string, clientId: string): Promise<Provid
   }
 
   const data = await res.json();
-  return data.providers || [];
+  return { providers: data.providers || [], emailEnabled: !!data.emailEnabled };
 }
 
 // ─── Composable ──────────────────────────────────────────────────────────
@@ -68,6 +75,7 @@ export function useProviders(): UseProvidersResult {
   // Initialize from cache if available
   const cached = getCachedProviders(cacheKey);
   const providers = ref<ProviderInfo[]>(cached?.providers || []);
+  const emailEnabled = ref(cached?.emailEnabled || false);
   const isLoading = ref(!cached);
   const error = ref<string | null>(null);
 
@@ -77,9 +85,10 @@ export function useProviders(): UseProvidersResult {
     if (showLoading) isLoading.value = true;
     try {
       const result = await fetchProviders(config.authUrl, config.clientId);
-      cache.set(cacheKey, { providers: result, fetchedAt: Date.now() });
+      cache.set(cacheKey, { providers: result.providers, emailEnabled: result.emailEnabled, fetchedAt: Date.now() });
       if (mounted) {
-        providers.value = result;
+        providers.value = result.providers;
+        emailEnabled.value = result.emailEnabled;
         error.value = null;
       }
     } catch (err) {
@@ -114,11 +123,13 @@ export function useProviders(): UseProvidersResult {
     } else if (isStale(entry)) {
       // Stale cache — show cached data, refresh in background
       providers.value = entry.providers;
+      emailEnabled.value = entry.emailEnabled;
       isLoading.value = false;
       doFetch(false);
     } else {
       // Fresh cache — use it directly
       providers.value = entry.providers;
+      emailEnabled.value = entry.emailEnabled;
       isLoading.value = false;
     }
 
@@ -131,5 +142,5 @@ export function useProviders(): UseProvidersResult {
     window.removeEventListener('focus', handleFocus);
   });
 
-  return { providers, isLoading, error, refresh };
+  return { providers, emailEnabled, isLoading, error, refresh };
 }

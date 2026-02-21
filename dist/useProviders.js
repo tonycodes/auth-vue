@@ -22,7 +22,7 @@ async function fetchProviders(authUrl, clientId) {
         throw new Error('Failed to fetch providers');
     }
     const data = await res.json();
-    return data.providers || [];
+    return { providers: data.providers || [], emailEnabled: !!data.emailEnabled };
 }
 // ─── Composable ──────────────────────────────────────────────────────────
 /**
@@ -36,6 +36,7 @@ export function useProviders() {
     // Initialize from cache if available
     const cached = getCachedProviders(cacheKey);
     const providers = ref(cached?.providers || []);
+    const emailEnabled = ref(cached?.emailEnabled || false);
     const isLoading = ref(!cached);
     const error = ref(null);
     let mounted = true;
@@ -44,9 +45,10 @@ export function useProviders() {
             isLoading.value = true;
         try {
             const result = await fetchProviders(config.authUrl, config.clientId);
-            cache.set(cacheKey, { providers: result, fetchedAt: Date.now() });
+            cache.set(cacheKey, { providers: result.providers, emailEnabled: result.emailEnabled, fetchedAt: Date.now() });
             if (mounted) {
-                providers.value = result;
+                providers.value = result.providers;
+                emailEnabled.value = result.emailEnabled;
                 error.value = null;
             }
         }
@@ -82,12 +84,14 @@ export function useProviders() {
         else if (isStale(entry)) {
             // Stale cache — show cached data, refresh in background
             providers.value = entry.providers;
+            emailEnabled.value = entry.emailEnabled;
             isLoading.value = false;
             doFetch(false);
         }
         else {
             // Fresh cache — use it directly
             providers.value = entry.providers;
+            emailEnabled.value = entry.emailEnabled;
             isLoading.value = false;
         }
         // Refetch on window focus (admin changes take effect when tab refocused)
@@ -97,6 +101,6 @@ export function useProviders() {
         mounted = false;
         window.removeEventListener('focus', handleFocus);
     });
-    return { providers, isLoading, error, refresh };
+    return { providers, emailEnabled, isLoading, error, refresh };
 }
 //# sourceMappingURL=useProviders.js.map

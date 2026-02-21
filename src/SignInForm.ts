@@ -60,10 +60,19 @@ export const SignInForm = defineComponent({
   },
   setup(props) {
     const config = useAuthConfig();
-    const { providers: fetchedProviders, isLoading: providersLoading } = useProviders();
+    const { providers: fetchedProviders, emailEnabled: fetchedEmailEnabled, isLoading: providersLoading } = useProviders();
     const activeTab = ref<Mode>('signin');
     const errorMessage = ref<string | null>(null);
     const returnTo = ref('/');
+
+    // Magic link state
+    const email = ref('');
+    const emailError = ref<string | null>(null);
+    const emailSending = ref(false);
+    const emailSent = ref(false);
+    const emailApiError = ref<string | null>(null);
+
+    const showEmail = computed(() => !props.providers && props.autoFetch && fetchedEmailEnabled.value);
 
     // Use prop providers if explicitly provided, otherwise use fetched providers
     const enabledProviders = computed<SSOProvider[]>(() => {
@@ -113,6 +122,50 @@ export const SignInForm = defineComponent({
     function switchTab(tab: Mode) {
       activeTab.value = tab;
       errorMessage.value = null;
+      emailError.value = null;
+      emailApiError.value = null;
+      emailSent.value = false;
+    }
+
+    async function handleMagicLink(e: Event) {
+      e.preventDefault();
+      emailError.value = null;
+      emailApiError.value = null;
+
+      const trimmed = email.value.trim();
+      if (!trimmed) {
+        emailError.value = 'Email is required';
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        emailError.value = 'Please enter a valid email address';
+        return;
+      }
+
+      emailSending.value = true;
+      try {
+        const res = await fetch(`${config.authUrl}/api/auth/magic-link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: trimmed,
+            mode: activeTab.value,
+            client_id: config.clientId,
+            redirect_uri: `${config.appUrl}/auth/callback`,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to send magic link');
+        }
+
+        emailSent.value = true;
+      } catch (err) {
+        emailApiError.value = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      } finally {
+        emailSending.value = false;
+      }
     }
 
     function buttonText(provider: SSOProvider) {
@@ -190,6 +243,90 @@ export const SignInForm = defineComponent({
         if (providerButtons.length > 0) {
           children.push(h('div', { class: 'space-y-3' }, providerButtons));
         }
+      }
+
+      // Magic link email
+      if (showEmail.value && !providersLoading.value) {
+        const emailChildren: ReturnType<typeof h>[] = [];
+
+        // Divider (only if there are OAuth providers)
+        if (enabledProviders.value.length > 0) {
+          emailChildren.push(
+            h('div', { class: 'flex items-center gap-3 my-5' }, [
+              h('div', { class: 'flex-1 h-px bg-zinc-200' }),
+              h('span', { class: 'text-xs text-zinc-400 uppercase tracking-wider' }, 'or'),
+              h('div', { class: 'flex-1 h-px bg-zinc-200' }),
+            ])
+          );
+        }
+
+        if (emailSent.value) {
+          emailChildren.push(
+            h('div', { class: 'text-center py-3' }, [
+              h('p', { class: 'text-sm font-medium text-zinc-900' }, 'Check your email'),
+              h('p', { class: 'text-sm text-zinc-500 mt-1' }, [
+                `We sent a ${activeTab.value === 'signin' ? 'sign-in' : 'sign-up'} link to `,
+                h('strong', { class: 'text-zinc-700' }, email.value.trim()),
+              ]),
+              h('button', {
+                type: 'button',
+                class: 'text-sm text-blue-600 hover:text-blue-700 mt-2 cursor-pointer bg-transparent border-none',
+                onClick: () => { emailSent.value = false; email.value = ''; },
+              }, 'Use a different email'),
+            ])
+          );
+        } else {
+          const formChildren: ReturnType<typeof h>[] = [];
+
+          formChildren.push(
+            h('input', {
+              type: 'email',
+              name: 'email',
+              autocomplete: 'email',
+              value: email.value,
+              onInput: (e: Event) => {
+                email.value = (e.target as HTMLInputElement).value;
+                emailError.value = null;
+                emailApiError.value = null;
+              },
+              placeholder: 'Email address',
+              class: `w-full px-4 py-3 rounded-xl border bg-white text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                emailError.value ? 'border-red-300' : 'border-zinc-300'
+              }`,
+            })
+          );
+
+          if (emailError.value) {
+            formChildren.push(
+              h('p', { class: 'text-xs text-red-600' }, emailError.value)
+            );
+          }
+
+          formChildren.push(
+            h('button', {
+              type: 'submit',
+              disabled: emailSending.value,
+              class: 'w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-xl transition-colors cursor-pointer hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed',
+            }, emailSending.value
+              ? 'Sending...'
+              : (activeTab.value === 'signin' ? 'Send sign-in link' : 'Send sign-up link'))
+          );
+
+          if (emailApiError.value) {
+            formChildren.push(
+              h('p', { class: 'text-xs text-red-600' }, emailApiError.value)
+            );
+          }
+
+          emailChildren.push(
+            h('form', {
+              onSubmit: handleMagicLink,
+              class: 'flex flex-col gap-2',
+            }, formChildren)
+          );
+        }
+
+        children.push(...emailChildren);
       }
 
       // Terms
