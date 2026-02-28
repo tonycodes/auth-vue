@@ -64,13 +64,29 @@ export const AuthCallback = defineComponent({
                     credentials: 'include',
                 });
                 if (!res.ok) {
-                    const data = await res.json();
-                    throw new Error(data.error || 'Authentication failed');
+                    let errorMessage;
+                    try {
+                        const data = await res.json();
+                        errorMessage = data.error || data.message || `Callback failed: ${res.status}`;
+                    }
+                    catch {
+                        const text = await res.text();
+                        errorMessage = text || `Callback failed: ${res.status} ${res.statusText}`;
+                    }
+                    throw new Error(errorMessage);
                 }
                 // Sync AuthProvider state from the new refresh cookie so
                 // isAuthenticated updates immediately (no full page reload needed)
                 if (auth?.refreshSession) {
-                    await auth.refreshSession();
+                    const refreshResult = await auth.refreshSession();
+                    if (refreshResult === null) {
+                        const msg = 'Failed to refresh session after authentication callback';
+                        error.value = msg;
+                        if (props.onError) {
+                            props.onError(msg);
+                        }
+                        return;
+                    }
                 }
                 // Decode state to get returnTo path
                 let returnTo = '/';
