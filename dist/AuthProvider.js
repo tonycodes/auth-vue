@@ -84,7 +84,7 @@ export const AuthProvider = defineComponent({
             }
             : null);
         let refreshTimer;
-        let refreshLock = false;
+        let refreshPromise = null;
         const state = reactive({
             isAuthenticated: false,
             isLoading: true,
@@ -99,6 +99,7 @@ export const AuthProvider = defineComponent({
             isPlatformAdmin: false,
             accessToken: null,
             getAccessToken,
+            refreshSession: refreshToken,
             login,
             logout,
             switchOrganization,
@@ -149,46 +150,49 @@ export const AuthProvider = defineComponent({
         async function refreshToken() {
             if (!resolved.value)
                 return null;
-            if (refreshLock)
-                return null;
-            refreshLock = true;
-            try {
-                const res = await fetch(`${resolved.value.apiUrl}/auth/refresh`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                });
-                if (!res.ok) {
-                    state.accessToken = null;
-                    state.user = null;
-                    state.organization = null;
-                    state.tenant = null;
-                    state.isAuthenticated = false;
-                    state.isAdmin = false;
-                    state.isOwner = false;
-                    state.appRole = null;
-                    state.isSuperAdmin = false;
-                    state.isPlatformAdmin = false;
+            // If a refresh is already in-flight, return the same promise
+            if (refreshPromise)
+                return refreshPromise;
+            refreshPromise = (async () => {
+                try {
+                    const res = await fetch(`${resolved.value.apiUrl}/auth/refresh`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+                    if (!res.ok) {
+                        state.accessToken = null;
+                        state.user = null;
+                        state.organization = null;
+                        state.tenant = null;
+                        state.isAuthenticated = false;
+                        state.isAdmin = false;
+                        state.isOwner = false;
+                        state.appRole = null;
+                        state.isSuperAdmin = false;
+                        state.isPlatformAdmin = false;
+                        return null;
+                    }
+                    const data = await res.json();
+                    const payload = updateFromToken(data.access_token);
+                    // Schedule next refresh 1 minute before expiry
+                    const expiresIn = payload.exp * 1000 - Date.now();
+                    const refreshIn = Math.max(expiresIn - 60000, 10000);
+                    if (refreshTimer)
+                        clearTimeout(refreshTimer);
+                    refreshTimer = setTimeout(() => {
+                        refreshToken();
+                    }, refreshIn);
+                    return data.access_token;
+                }
+                catch {
                     return null;
                 }
-                const data = await res.json();
-                const payload = updateFromToken(data.access_token);
-                // Schedule next refresh 1 minute before expiry
-                const expiresIn = payload.exp * 1000 - Date.now();
-                const refreshIn = Math.max(expiresIn - 60000, 10000);
-                if (refreshTimer)
-                    clearTimeout(refreshTimer);
-                refreshTimer = setTimeout(() => {
-                    refreshToken();
-                }, refreshIn);
-                return data.access_token;
-            }
-            catch {
-                return null;
-            }
-            finally {
-                refreshLock = false;
-            }
+                finally {
+                    refreshPromise = null;
+                }
+            })();
+            return refreshPromise;
         }
         async function fetchOrganizations(token) {
             if (!resolved.value)
