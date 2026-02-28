@@ -1,6 +1,6 @@
 import { defineComponent, ref, onMounted, inject, h } from 'vue';
-import { AUTH_RESOLVED_CONFIG_KEY } from './AuthProvider.js';
-import type { ResolvedAuthConfig } from './types.js';
+import { AUTH_INJECTION_KEY, AUTH_RESOLVED_CONFIG_KEY } from './AuthProvider.js';
+import type { AuthState, ResolvedAuthConfig } from './types.js';
 
 /**
  * Component that handles the OAuth callback.
@@ -20,8 +20,9 @@ export const AuthCallback = defineComponent({
     const error = ref<string | null>(null);
     const exchanged = ref(false);
 
-    // Try to get resolved config from provider injection
+    // Try to get resolved config and auth state from provider injection
     const config = inject<ResolvedAuthConfig>(AUTH_RESOLVED_CONFIG_KEY, undefined as unknown as ResolvedAuthConfig);
+    const auth = inject<AuthState>(AUTH_INJECTION_KEY, undefined as unknown as AuthState);
 
     onMounted(async () => {
       // Guard against double-firing
@@ -63,13 +64,19 @@ export const AuthCallback = defineComponent({
       const baseUrl = props.apiUrl || config?.apiUrl || config?.appUrl || window.location.origin;
 
       try {
-        const res = await fetch(`${baseUrl}/auth/callback?code=${encodeURIComponent(code)}`, {
+        const res = await fetch(`${baseUrl}/api/auth/callback?code=${encodeURIComponent(code)}`, {
           credentials: 'include',
         });
 
         if (!res.ok) {
           const data = await res.json();
           throw new Error(data.error || 'Authentication failed');
+        }
+
+        // Sync AuthProvider state from the new refresh cookie so
+        // isAuthenticated updates immediately (no full page reload needed)
+        if (auth?.refreshSession) {
+          await auth.refreshSession();
         }
 
         // Decode state to get returnTo path

@@ -57,6 +57,8 @@ export interface AuthState {
   isPlatformAdmin: boolean;
   accessToken: string | null;
   getAccessToken: () => Promise<string | null>;
+  /** Refresh auth state from server (call after token exchange to sync in-memory state) */
+  refreshSession: () => Promise<string | null>;
   login: (provider?: string) => void;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;

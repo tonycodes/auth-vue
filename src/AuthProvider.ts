@@ -132,6 +132,7 @@ export const AuthProvider = defineComponent({
       isPlatformAdmin: false,
       accessToken: null,
       getAccessToken,
+      refreshSession: refreshToken,
       login,
       logout,
       switchOrganization,
